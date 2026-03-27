@@ -3,17 +3,16 @@
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
-from playwright.async_api import BrowserContext, async_playwright
-
-from auth.credential_vault import CredentialVault
 from auth.session_store import SessionStore
-from claude.computer_use import claude_login
+
+if TYPE_CHECKING:
+    from playwright.async_api import BrowserContext
 
 log = logging.getLogger(__name__)
 
 session_store = SessionStore()
-credential_vault = CredentialVault()
 
 DISPLAY_WIDTH = 1280
 DISPLAY_HEIGHT = 800
@@ -28,11 +27,13 @@ async def ensure_authenticated_context(
     twilio_number: str | None,
     session_ttl_hours: int,
 ) -> BrowserContext:
-    """Return a Playwright browser context with valid session cookies.
+    """Return a Playwright browser context with valid session cookies."""
+    from playwright.async_api import async_playwright
+    from auth.credential_vault import CredentialVault
+    from claude.computer_use import claude_login
 
-    Checks Redis for existing cookies. If missing or expired, launches
-    Claude Computer Use to re-authenticate.
-    """
+    credential_vault = CredentialVault()
+
     pw = await async_playwright().start()
     browser = await pw.chromium.launch(headless=True)
 
@@ -44,7 +45,6 @@ async def ensure_authenticated_context(
             viewport={"width": DISPLAY_WIDTH, "height": DISPLAY_HEIGHT}
         )
         await context.add_cookies(cookies)
-        # Quick validation: try loading the base URL and see if we get redirected to login
         page = await context.new_page()
         await page.goto(portal_base_url, wait_until="networkidle")
         if portal_login_url not in page.url:
