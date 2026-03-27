@@ -1,0 +1,133 @@
+"""Test endpoint — runs AIA sync directly without Celery. For development only."""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+import os
+
+from fastapi import APIRouter, BackgroundTasks
+from pydantic import BaseModel
+
+from auth.twilio_otp import OTPStore
+from workers.crm_writer import upsert_policies
+
+log = logging.getLogger(__name__)
+router = APIRouter()
+
+# In-memory state for the test run
+_test_state = {
+    "status": "idle",
+    "message": "",
+    "policies_count": 0,
+    "output_file": "",
+    "error": "",
+}
+
+
+class OTPInput(BaseModel):
+    code: str
+
+
+@router.get("/status")
+async def test_status():
+    """Check the status of the current test sync."""
+    return _test_state
+
+
+@router.post("/otp")
+async def submit_otp(otp: OTPInput):
+    """Manually submit an OTP code for the test sync."""
+    otp_store = OTPStore()
+    phone = os.getenv("AIA_PHONE", "+61433337000")
+    otp_store.store(phone, otp.code)
+    return {"status": "stored", "phone": phone}
+
+
+@router.post("/run-aia")
+async def run_aia_test(background_tasks: BackgroundTasks):
+    """Kick off an AIA sync in the background. Check /test/status for progress."""
+    if _test_state["status"] == "running":
+        return {"error": "A test sync is already running"}
+
+    _test_state.update(status="running", message="Starting AIA sync...", error="", output_file="")
+    background_tasks.add_task(_run_aia_sync)
+    return {"status": "started", "next": "Check /test/status for progress. Submit OTP at /test/otp if needed."}
+
+
+async def _run_aia_sync():
+    """The actual sync logic — runs as a background task."""
+    from playwright.async_api import async_playwright
+    from claude.computer_use import claude_login, DISPLAY_WIDTH, DISPLAY_HEIGHT
+    from portals.aia import AIAExtractor
+    from auth.session_store import SessionStore
+
+    session_store = SessionStore()
+    username = os.getenv("AIA_USERNAME", "")
+    password = os.getenv("AIA_PASSWORD", "")
+    phone = os.getenv("AIA_PHONE")
+
+    try:
+        # Step 1: Launch browser
+        _test_state["message"] = "Launching browser..."
+        pw = await async_playwright().start()
+        browser = await pw.chromium.launch(headless=True)
+        context = await browser.new_context(
+            viewport={"width": DISPLAY_WIDTH, "height": DISPLAY_HEIGHT}
+        )
+        page = await context.new_page()
+
+        # Step 2: Check for cached session
+        cookies = session_store.get("test_adviser", "aia")
+        if cookies:
+            _test_state["message"] = "Found cached session — testing validity..."
+            await context.add_cookies(cookies)
+            await page.goto("https://adviserretail.aia.com.au/au/en/policy.html?inforce=true", wait_until="networkidle")
+
+            if "welcome" not in page.url and "forgerock" not in page.url:
+                _test_state["message"] = "Cached session valid — skipping login"
+            else:
+                _test_state["message"] = "Cached session expired — re-authenticating..."
+                cookies = None
+
+        # Step 3: Login if needed
+        if not cookies:
+            _test_state["message"] = "Starting Claude login... (submit OTP at /test/otp when prompted)"
+            page = await context.new_page()
+            new_cookies = await claude_login(
+                page=page,
+                portal_id="aia",
+                portal_login_url="https://adviserretail.aia.com.au/au/en/welcome.html",
+                credentials={"username": username, "password": password},
+                twilio_number=phone,
+            )
+            session_store.set("test_adviser", "aia", new_cookies, ttl_hours=12)
+            _test_state["message"] = "Login successful — extracting policies..."
+
+        # Step 4: Extract policies
+        _test_state["message"] = "Extracting policies from AIA portal..."
+        extractor = AIAExtractor()
+        policies = await extractor.extract(context)
+
+        # Step 5: Write to Excel
+        _test_state["message"] = "Writing Excel file..."
+        output_path = upsert_policies("test_adviser", "aia", policies)
+
+        _test_state.update(
+            status="complete",
+            message=f"Done! {len(policies)} policies extracted.",
+            policies_count=len(policies),
+            output_file=output_path,
+        )
+
+        await context.close()
+        await browser.close()
+        await pw.stop()
+
+    except Exception as e:
+        log.exception("Test AIA sync failed")
+        _test_state.update(
+            status="failed",
+            message=str(e),
+            error=str(e),
+        )

@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from config import settings
 from api.routes import router as jobs_router
 from api.webhooks import router as webhooks_router
+from api.test_sync import router as test_router
 
 logging.basicConfig(
     level=getattr(logging, settings.log_level),
@@ -14,6 +15,7 @@ logging.basicConfig(
 app = FastAPI(title="Axis Policy Sync", version="0.1.0")
 app.include_router(jobs_router, prefix="/jobs", tags=["jobs"])
 app.include_router(webhooks_router, prefix="/webhooks", tags=["webhooks"])
+app.include_router(test_router, prefix="/test", tags=["test"])
 
 
 @app.get("/health")
