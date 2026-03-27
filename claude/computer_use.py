@@ -17,7 +17,7 @@ log = logging.getLogger(__name__)
 
 DISPLAY_WIDTH = 1280
 DISPLAY_HEIGHT = 800
-TOOL_VERSION = "computer_20250124"
+TOOL_VERSION = "computer_20241022"
 BETA_FLAG = "computer-use-2024-10-22"
 MODEL = "claude-sonnet-4-20250514"
 
