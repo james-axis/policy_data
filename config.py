@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     axis_crm_api_url: str = ""
     axis_crm_api_token: str = ""
 
+    # Browserbase
+    browserbase_api_key: str = ""
+    browserbase_project_id: str = ""
+
     # Worker
     max_worker_concurrency: int = 5
     claude_max_turns: int = 12
