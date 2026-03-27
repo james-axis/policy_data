@@ -33,13 +33,15 @@ def _load_prompt(portal_id: str) -> str:
     return path.read_text()
 
 
-async def _take_screenshot(page: Page) -> str:
+async def _take_screenshot(page: Page, save_path: Path | None = None) -> str:
     """Capture a JPEG screenshot and return base64-encoded string."""
     buf = await page.screenshot(
         type="jpeg",
         quality=70,
         clip={"x": 0, "y": 0, "width": DISPLAY_WIDTH, "height": DISPLAY_HEIGHT},
     )
+    if save_path:
+        save_path.write_bytes(buf)
     return base64.b64encode(buf).decode()
 
 
@@ -85,8 +87,12 @@ async def claude_login(
         },
     ]
 
+    # Directory to save debug screenshots
+    debug_dir = Path("/tmp") / f"login_{portal_id}"
+    debug_dir.mkdir(exist_ok=True)
+
     # Initial screenshot to give Claude context
-    screenshot_b64 = await _take_screenshot(page)
+    screenshot_b64 = await _take_screenshot(page, save_path=debug_dir / "turn_00_initial.jpg")
     messages = [
         {
             "role": "user",
@@ -108,7 +114,7 @@ async def claude_login(
     ]
 
     for turn in range(max_turns):
-        log.info("Claude login turn %d/%d for portal %s", turn + 1, max_turns, portal_id)
+        log.info("Claude login turn %d/%d for portal %s | url=%s", turn + 1, max_turns, portal_id, page.url)
 
         response = client.beta.messages.create(
             model=MODEL,
@@ -126,6 +132,7 @@ async def claude_login(
         tool_results = []
         for block in response.content:
             if block.type == "text":
+                log.info("Claude text (turn %d): %s", turn + 1, block.text[:200])
                 text = block.text.lower()
                 # Check if Claude signals login complete
                 if "login successful" in text or "authenticated" in text or "dashboard" in text:
@@ -155,7 +162,7 @@ async def claude_login(
 
                 if action.get("action") == "screenshot":
                     # Return a fresh screenshot
-                    screenshot_b64 = await _take_screenshot(page)
+                    screenshot_b64 = await _take_screenshot(page, save_path=debug_dir / f"turn_{turn+1:02d}_screenshot.jpg")
                     tool_results.append({
                         "type": "tool_result",
                         "tool_use_id": block.id,
@@ -184,7 +191,7 @@ async def claude_login(
                         # After each non-screenshot action, return a screenshot
                         import asyncio
                         await asyncio.sleep(0.5)  # let page settle
-                        screenshot_b64 = await _take_screenshot(page)
+                        screenshot_b64 = await _take_screenshot(page, save_path=debug_dir / f"turn_{turn+1:02d}_after_{action.get('action','action')}.jpg")
                         tool_results.append({
                             "type": "tool_result",
                             "tool_use_id": block.id,

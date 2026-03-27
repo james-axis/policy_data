@@ -45,6 +45,17 @@ async def submit_otp(otp: OTPInput):
     return {"status": "stored", "phone": phone}
 
 
+@router.get("/screenshots")
+async def list_screenshots():
+    """List saved debug screenshots from the last login attempt."""
+    from pathlib import Path
+    debug_dir = Path("/tmp/login_aia")
+    if not debug_dir.exists():
+        return {"files": []}
+    files = sorted(debug_dir.glob("*.jpg"))
+    return {"files": [f.name for f in files], "count": len(files)}
+
+
 @router.get("/debug-url")
 async def test_debug_url():
     """Return the Browserbase live debug viewer URL for the current session."""
