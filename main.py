@@ -29,8 +29,10 @@ except Exception as e:
 try:
     from api.test_sync import router as test_router
     app.include_router(test_router, prefix="/test", tags=["test"])
+    print("TEST ROUTER LOADED OK")
 except Exception as e:
-    log.error("Failed to load test router: %s\n%s", e, traceback.format_exc())
+    print(f"TEST ROUTER FAILED: {e}")
+    traceback.print_exc()
 
 
 @app.get("/health")
