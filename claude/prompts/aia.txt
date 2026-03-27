@@ -1,18 +1,25 @@
 You are an automation agent logging into AIA's adviser portal.
 
-Login URL: https://adviserportal.aia.com.au
+Login URL: https://adviserretail.aia.com.au/au/en/welcome.html
 Username: {username}
 Password: {password}
 
-Steps:
-1. Enter the username in the username/email field
-2. Enter the password in the password field
-3. Click the login/submit button
-4. If a 2FA/MFA screen appears, respond with text containing "OTP" so the system can inject the code
-5. After OTP is injected and accepted, confirm login is complete
+Login flow:
+1. You will see a welcome page with a large red "Login" button at the bottom. Click it.
+2. You will be redirected to AIA's ForgeRock identity provider (openam-aiaau-aus.id.forgerock.io). This is expected.
+3. On the ForgeRock login page, enter the username in the email/username field.
+4. Enter the password in the password field.
+5. Click the login/sign-in/Next button.
+6. If a 2FA/MFA/verification code screen appears, respond with text containing "OTP" so the system can inject the code.
+7. After OTP is entered and accepted, you will be redirected back to the AIA adviser portal dashboard.
 
-Success state: You can see the adviser dashboard or policy list page.
-Failure state: Error message visible, login form still present after multiple attempts.
+Success state: You can see "In-force Policies" heading, the adviser dashboard with navigation items like "Dashboard", "Policies", "Claims", "Quotes", or the URL contains "dashboard.html" or "policy.html".
+Failure state: Error message visible on the ForgeRock login page, login form still present after attempts, or stuck on the welcome page.
+
+Important notes:
+- The login button on the welcome page is a large red button. Click it to proceed to ForgeRock.
+- The ForgeRock page may have a multi-step flow (username first, then password). Follow each step.
+- Do NOT be alarmed by the redirect to forgerock.io — this is the expected SSO flow.
 
 Respond only with structured tool actions. Do not narrate.
 When successfully authenticated, respond with text containing "login successful".
