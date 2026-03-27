@@ -1,59 +1,75 @@
-"""Write-back normalised policy data to the Axis CRM REST API."""
+"""Write policy data to Excel files (testing mode) or Axis CRM API (production)."""
 
 from __future__ import annotations
 
 import logging
-import time
-
-import httpx
-
-from config import settings
+import os
+from datetime import datetime, timezone
+from pathlib import Path
 
 log = logging.getLogger(__name__)
 
-MAX_RETRIES = 3
-BACKOFF_BASE = 2  # seconds
+OUTPUT_DIR = Path(os.getenv("POLICY_OUTPUT_DIR", "output"))
 
 
-def upsert_policies(adviser_id: str, portal_id: str, policies: list[dict]) -> None:
-    """POST policies to the Axis CRM upsert endpoint with retry."""
-    url = f"{settings.axis_crm_api_url}/policy-sync/upsert"
-    headers = {
-        "Authorization": f"Bearer {settings.axis_crm_api_token}",
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "adviser_id": adviser_id,
-        "portal_id": portal_id,
-        "synced_at": _now_iso(),
-        "policies": policies,
-    }
+def upsert_policies(adviser_id: str, portal_id: str, policies: list[dict]) -> str:
+    """Write policies to an Excel file, one sheet per sync.
 
-    last_error = None
-    for attempt in range(1, MAX_RETRIES + 1):
-        try:
-            with httpx.Client(timeout=30) as client:
-                resp = client.post(url, json=payload, headers=headers)
-                resp.raise_for_status()
-            log.info(
-                "CRM upsert success: %d policies for %s:%s",
-                len(policies), adviser_id, portal_id,
-            )
-            return
-        except httpx.HTTPError as e:
-            last_error = e
-            wait = BACKOFF_BASE ** attempt
-            log.warning(
-                "CRM upsert attempt %d/%d failed: %s — retrying in %ds",
-                attempt, MAX_RETRIES, e, wait,
-            )
-            time.sleep(wait)
+    Returns the path to the generated file.
+    """
+    import openpyxl
 
-    raise RuntimeError(
-        f"CRM upsert failed after {MAX_RETRIES} attempts: {last_error}"
-    )
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    filename = f"{portal_id}_{adviser_id}_{ts}.xlsx"
+    filepath = OUTPUT_DIR / filename
 
-def _now_iso() -> str:
-    from datetime import datetime, timezone
-    return datetime.now(timezone.utc).isoformat()
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = f"{portal_id} policies"
+
+    # Header row
+    headers = [
+        "Policy Number", "Client Name", "Product Name", "Status",
+        "Premium Amount", "Premium Frequency", "Sum Insured",
+        "Policy Start Date", "Next Payment Date",
+    ]
+    ws.append(headers)
+
+    # Bold headers
+    from openpyxl.styles import Font
+    bold = Font(bold=True)
+    for cell in ws[1]:
+        cell.font = bold
+
+    # Data rows
+    for p in policies:
+        ws.append([
+            p.get("policy_number", ""),
+            p.get("client_name", ""),
+            p.get("product_name", ""),
+            p.get("status", ""),
+            p.get("premium_amount", ""),
+            p.get("premium_frequency", ""),
+            p.get("sum_insured", ""),
+            p.get("policy_start_date", ""),
+            p.get("next_payment_date", ""),
+        ])
+
+    # Auto-width columns
+    for col in ws.columns:
+        max_len = max(len(str(cell.value or "")) for cell in col)
+        ws.column_dimensions[col[0].column_letter].width = min(max_len + 2, 40)
+
+    # Summary sheet
+    ws2 = wb.create_sheet("Sync Info")
+    ws2.append(["Field", "Value"])
+    ws2.append(["Adviser ID", adviser_id])
+    ws2.append(["Portal", portal_id])
+    ws2.append(["Synced At", datetime.now(timezone.utc).isoformat()])
+    ws2.append(["Total Policies", len(policies)])
+
+    wb.save(filepath)
+    log.info("Wrote %d policies to %s", len(policies), filepath)
+    return str(filepath)

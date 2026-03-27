@@ -1,11 +1,15 @@
-"""API routes — trigger sync jobs, check status."""
+"""API routes — trigger sync jobs, check status, download output files."""
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi import APIRouter, Header, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from config import settings
+from workers.crm_writer import OUTPUT_DIR
 from workers.sync_worker import run_sync_job
 
 router = APIRouter()
@@ -68,3 +72,26 @@ async def get_job_status(
             response["error"] = str(result.result)
 
     return response
+
+
+@router.get("/output/list")
+async def list_output_files():
+    """List all generated Excel files."""
+    if not OUTPUT_DIR.exists():
+        return {"files": []}
+    files = sorted(OUTPUT_DIR.glob("*.xlsx"), key=lambda f: f.stat().st_mtime, reverse=True)
+    return {
+        "files": [
+            {"name": f.name, "size_kb": round(f.stat().st_size / 1024, 1)}
+            for f in files
+        ]
+    }
+
+
+@router.get("/output/{filename}")
+async def download_output_file(filename: str):
+    """Download a specific Excel output file."""
+    filepath = OUTPUT_DIR / filename
+    if not filepath.exists() or not filepath.suffix == ".xlsx":
+        raise HTTPException(status_code=404, detail="File not found")
+    return FileResponse(filepath, filename=filename, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
