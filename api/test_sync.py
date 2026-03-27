@@ -86,18 +86,24 @@ async def _run_aia_sync():
     browser = None
 
     try:
-        # Step 1: Launch local browser
-        _test_state["message"] = "Launching browser..."
+        # Step 1: Create Browserbase session (different IP than Railway)
+        _test_state["message"] = "Creating Browserbase session..."
+        from browser.browserbase import create_session, get_debug_url
+        bb_session_id, cdp_url = await create_session(proxy=False)
+
+        try:
+            debug_url = await get_debug_url(bb_session_id)
+            _test_state["debug_url"] = debug_url
+            log.info("Browserbase debug viewer: %s", debug_url)
+        except Exception:
+            pass
+
+        # Step 2: Connect Playwright to Browserbase
+        _test_state["message"] = "Connecting to browser..."
         pw = await async_playwright().start()
-        browser = await pw.chromium.launch(
-            headless=True,
-            args=[
-                "--disable-blink-features=AutomationControlled",
-                "--disable-dev-shm-usage",
-                "--no-sandbox",
-            ],
-        )
-        context = await browser.new_context(
+        browser = await pw.chromium.connect_over_cdp(cdp_url)
+
+        context = browser.contexts[0] if browser.contexts else await browser.new_context(
             viewport={"width": DISPLAY_WIDTH, "height": DISPLAY_HEIGHT},
             user_agent=(
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
