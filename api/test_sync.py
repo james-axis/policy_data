@@ -68,12 +68,22 @@ async def _run_aia_sync():
     phone = os.getenv("AIA_PHONE")
 
     try:
-        # Step 1: Launch browser
+        # Step 1: Launch browser with realistic settings to avoid bot detection
         _test_state["message"] = "Launching browser..."
         pw = await async_playwright().start()
-        browser = await pw.chromium.launch(headless=True)
+        browser = await pw.chromium.launch(
+            headless=True,
+            args=[
+                "--disable-blink-features=AutomationControlled",
+                "--disable-dev-shm-usage",
+                "--no-sandbox",
+            ],
+        )
         context = await browser.new_context(
-            viewport={"width": DISPLAY_WIDTH, "height": DISPLAY_HEIGHT}
+            viewport={"width": DISPLAY_WIDTH, "height": DISPLAY_HEIGHT},
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+            java_script_enabled=True,
+            ignore_https_errors=True,
         )
         page = await context.new_page()
 
@@ -82,7 +92,11 @@ async def _run_aia_sync():
         if cookies:
             _test_state["message"] = "Found cached session — testing validity..."
             await context.add_cookies(cookies)
-            await page.goto("https://adviserretail.aia.com.au/au/en/policy.html?inforce=true", wait_until="networkidle")
+            await page.goto(
+                "https://adviserretail.aia.com.au/au/en/policy.html?inforce=true",
+                wait_until="domcontentloaded",
+                timeout=30000,
+            )
 
             if "welcome" not in page.url and "forgerock" not in page.url:
                 _test_state["message"] = "Cached session valid — skipping login"

@@ -74,7 +74,7 @@ async def claude_login(
     system_prompt = system_prompt.replace("{username}", credentials["username"])
     system_prompt = system_prompt.replace("{password}", credentials["password"])
 
-    await page.goto(portal_login_url, wait_until="networkidle")
+    await page.goto(portal_login_url, wait_until="domcontentloaded", timeout=30000)
 
     tools = [
         {
