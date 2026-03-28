@@ -83,36 +83,33 @@ async def aia_login(
     await asyncio.sleep(4)
     log.info("After login click, URL: %s", page.url)
 
-    # Step 2: ForgeRock — handle username (may be two-step)
-    log.info("Entering username")
-    username_field = page.locator("input[name='IDToken1'], input[name='username'], input[type='text'], input[type='email']").first
-    await username_field.fill(username, timeout=10000)
+    # Step 2: ForgeRock — wait for form to load then fill credentials
+    log.info("Waiting for ForgeRock form...")
+    # Wait for the username field to appear
+    username_field = page.locator("input[placeholder='Username'], input[name='IDToken1'], input[name='username']").first
+    await username_field.wait_for(state="visible", timeout=15000)
+    log.info("ForgeRock form visible, URL: %s", page.url)
+
+    # Clear and fill username
+    await username_field.triple_click()
+    await username_field.fill(username)
+    log.info("Username entered: %s", username)
     await asyncio.sleep(0.5)
 
-    # Check if password field is already visible (one-step) or need to click Next first (two-step)
-    password_visible = False
-    try:
-        pw_field = page.locator("input[name='IDToken2'], input[type='password']").first
-        await pw_field.wait_for(state="visible", timeout=2000)
-        password_visible = True
-        log.info("Password field already visible — one-step form")
-    except Exception:
-        log.info("Password field not visible — two-step form, clicking Next")
-        await _click_submit(page)
-        await asyncio.sleep(3)
-        log.info("After Next, URL: %s", page.url)
-
-    # Step 3: Enter password
+    # Step 3: Enter password — use type() to handle special chars reliably
     log.info("Entering password")
-    pw_field = page.locator("input[name='IDToken2'], input[type='password']").first
-    await pw_field.fill(password, timeout=10000)
+    pw_field = page.locator("input[placeholder='Password'], input[name='IDToken2'], input[type='password']").first
+    await pw_field.wait_for(state="visible", timeout=5000)
+    await pw_field.triple_click()
+    await pw_field.fill(password)
+    log.info("Password entered (length: %d)", len(password))
     await asyncio.sleep(0.5)
 
-    # Step 4: Click Sign In
-    log.info("Clicking Sign In")
+    # Step 4: Click Next button
+    log.info("Clicking Next")
     await _click_submit(page)
     await asyncio.sleep(4)
-    log.info("After sign in, URL: %s", page.url)
+    log.info("After Next, URL: %s", page.url)
 
     # Check for login error
     try:
