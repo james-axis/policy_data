@@ -34,13 +34,33 @@ async def aia_login(
     await asyncio.sleep(2)
 
     # Step 1: Click the Login button on the welcome page
-    log.info("Clicking Login button")
-    login_btn = page.locator("a.login-button, button.login-button, a[href*='login'], .btn-login").first
-    try:
-        await login_btn.click(timeout=10000)
-    except Exception:
-        # Fallback: find any button/link with "Login" text
-        await page.get_by_role("link", name="Login").first.click(timeout=10000)
+    log.info("Clicking Login button, page title: %s url: %s", await page.title(), page.url)
+    # Try multiple strategies to find the Login button
+    clicked = False
+    for selector in [
+        "a.btn-login", "button.btn-login", ".btn-login",
+        "a[class*='login']", "button[class*='login']",
+        "a[href*='login']", "a[href*='Login']",
+        ".login-button", "#loginButton",
+    ]:
+        try:
+            el = page.locator(selector).first
+            await el.click(timeout=3000)
+            clicked = True
+            log.info("Clicked login button via selector: %s", selector)
+            break
+        except Exception:
+            continue
+
+    if not clicked:
+        # JS fallback: click the first element whose text contains "Login"
+        log.info("Using JS fallback to find Login button")
+        await page.evaluate("""
+            const els = Array.from(document.querySelectorAll('a, button'));
+            const btn = els.find(e => e.textContent.trim().toLowerCase() === 'login' || e.textContent.trim().toLowerCase() === 'log in');
+            if (btn) btn.click();
+            else throw new Error('Login button not found in DOM');
+        """)
     await asyncio.sleep(3)
 
     log.info("On ForgeRock page: %s", page.url)
