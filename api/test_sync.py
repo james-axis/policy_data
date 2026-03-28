@@ -56,6 +56,18 @@ async def list_screenshots():
     return {"files": [f.name for f in files], "count": len(files)}
 
 
+@router.get("/screenshot/{filename}")
+async def get_screenshot(filename: str):
+    """Serve a saved debug screenshot."""
+    from pathlib import Path
+    from fastapi.responses import FileResponse
+    path = Path("/tmp/login_aia") / filename
+    if not path.exists() or not path.suffix == ".jpg":
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Screenshot not found")
+    return FileResponse(path, media_type="image/jpeg")
+
+
 @router.get("/debug-url")
 async def test_debug_url():
     """Return the Browserbase live debug viewer URL for the current session."""
