@@ -126,23 +126,30 @@ async def aia_login(
     await username_field.wait_for(state="visible", timeout=20000)
     log.info("ForgeRock form visible, URL: %s", page.url)
 
-    # Clear and type username char-by-char to trigger Angular change detection
+    # Fill username using fill() + JS event dispatch to trigger Angular
     await username_field.click()
-    await page.keyboard.press("Control+a")
-    await page.keyboard.press("Delete")
-    await username_field.press_sequentially(username, delay=50)
-    log.info("Username entered: %s", username)
+    await username_field.fill(username)
+    await page.evaluate("""(el) => {
+        el.dispatchEvent(new Event('input', {bubbles: true}));
+        el.dispatchEvent(new Event('change', {bubbles: true}));
+        el.dispatchEvent(new KeyboardEvent('keyup', {bubbles: true}));
+    }""", await username_field.element_handle())
+    log.info("Username entered: %s | field value: %s", username, await username_field.input_value())
     await asyncio.sleep(0.5)
 
-    # Step 3: Enter password char-by-char
+    # Step 3: Enter password
     log.info("Entering password")
     pw_field = page.locator("input[placeholder='Password'], input[name='IDToken2'], input[type='password']").first
     await pw_field.wait_for(state="visible", timeout=5000)
     await pw_field.click()
-    await page.keyboard.press("Control+a")
-    await page.keyboard.press("Delete")
-    await pw_field.press_sequentially(password, delay=50)
-    log.info("Password entered (length: %d)", len(password))
+    await pw_field.fill(password)
+    await page.evaluate("""(el) => {
+        el.dispatchEvent(new Event('input', {bubbles: true}));
+        el.dispatchEvent(new Event('change', {bubbles: true}));
+        el.dispatchEvent(new KeyboardEvent('keyup', {bubbles: true}));
+    }""", await pw_field.element_handle())
+    actual_len = await page.evaluate("(el) => el.value.length", await pw_field.element_handle())
+    log.info("Password entered (expected length: %d, actual: %d)", len(password), actual_len)
     await asyncio.sleep(0.5)
 
     # Step 4: Click Next button
