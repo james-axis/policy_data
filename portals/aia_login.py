@@ -80,18 +80,22 @@ async def aia_login(
     await username_field.wait_for(state="visible", timeout=20000)
     log.info("ForgeRock form visible, URL: %s", page.url)
 
-    # Clear and fill username
-    await username_field.click(click_count=3)
-    await username_field.fill(username)
+    # Clear and type username — use type() not fill() to trigger Angular change detection
+    await username_field.click()
+    await page.keyboard.press("Control+a")
+    await page.keyboard.press("Delete")
+    await username_field.type(username, delay=50)
     log.info("Username entered: %s", username)
     await asyncio.sleep(0.5)
 
-    # Step 3: Enter password
+    # Step 3: Enter password — type() fires real keystrokes, works with Angular/ForgeRock
     log.info("Entering password")
     pw_field = page.locator("input[placeholder='Password'], input[name='IDToken2'], input[type='password']").first
     await pw_field.wait_for(state="visible", timeout=5000)
-    await pw_field.click(click_count=3)
-    await pw_field.fill(password)
+    await pw_field.click()
+    await page.keyboard.press("Control+a")
+    await page.keyboard.press("Delete")
+    await pw_field.type(password, delay=50)
     log.info("Password entered (length: %d)", len(password))
     await asyncio.sleep(0.5)
 
