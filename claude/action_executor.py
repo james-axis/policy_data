@@ -8,6 +8,40 @@ from playwright.async_api import Page
 
 log = logging.getLogger(__name__)
 
+# Map Claude/X11 key names → Playwright W3C key names
+_KEY_MAP = {
+    "Return": "Enter",
+    "KP_Enter": "Enter",
+    "space": "Space",
+    "ctrl": "Control",
+    "Control_L": "Control",
+    "Control_R": "Control",
+    "alt": "Alt",
+    "Alt_L": "Alt",
+    "Alt_R": "Alt",
+    "super": "Meta",
+    "Super_L": "Meta",
+    "shift": "Shift",
+    "Shift_L": "Shift",
+    "Shift_R": "Shift",
+    "BackSpace": "Backspace",
+    "Delete": "Delete",
+    "Escape": "Escape",
+    "Tab": "Tab",
+    "F1": "F1", "F2": "F2", "F3": "F3", "F4": "F4", "F5": "F5",
+    "F6": "F6", "F7": "F7", "F8": "F8", "F9": "F9", "F10": "F10",
+    "F11": "F11", "F12": "F12",
+}
+
+
+def _translate_key(key: str) -> str:
+    """Translate a Claude/X11 key name to a Playwright W3C key name."""
+    # Handle combos like "ctrl+l" or "alt+Left"
+    if "+" in key:
+        parts = key.split("+")
+        return "+".join(_KEY_MAP.get(p, p) for p in parts)
+    return _KEY_MAP.get(key, key)
+
 
 async def execute(page: Page, action: dict) -> str | None:
     """Execute a single Claude computer_use action on a Playwright page.
@@ -51,7 +85,8 @@ async def execute(page: Page, action: dict) -> str | None:
             await page.keyboard.type(text, delay=50)
 
         elif action_type == "key":
-            key = action["text"]
+            key = _translate_key(action["text"])
+            log.info("Translated key '%s' → '%s'", action["text"], key)
             await page.keyboard.press(key)
 
         elif action_type == "scroll":
@@ -79,6 +114,15 @@ async def execute(page: Page, action: dict) -> str | None:
         elif action_type == "wait":
             import asyncio
             await asyncio.sleep(action.get("duration", 1))
+
+        elif action_type == "navigate":
+            url = action.get("url") or action.get("text", "")
+            await page.goto(url, wait_until="domcontentloaded", timeout=30000)
+
+        elif action_type == "js_click":
+            # Click an element via JS selector — useful when button is off-screen
+            selector = action.get("selector", "")
+            await page.evaluate(f'document.querySelector("{selector}")?.click()')
 
         else:
             return f"Unknown action type: {action_type}"

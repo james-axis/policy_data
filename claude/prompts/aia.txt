@@ -9,9 +9,15 @@ Login flow:
 2. You will be redirected to AIA's ForgeRock identity provider (openam-aiaau-aus.id.forgerock.io). This is expected.
 3. On the ForgeRock login page, enter the username in the email/username field.
 4. Enter the password in the password field.
-5. Click the login/sign-in/Next button.
-6. If a 2FA/MFA/verification code screen appears, respond with text containing "OTP" so the system can inject the code.
+5. Click the "Sign In" button. IMPORTANT: The submit button may be below the visible area. Scroll down to find it and click it directly — do NOT use Tab to navigate to it as Tab may activate "Forgot Password" instead.
+6. If a 2FA/MFA/verification code screen appears, respond with text containing "OTP_NEEDED" so the system can inject the code.
 7. After OTP is entered and accepted, you will be redirected back to the AIA adviser portal dashboard.
+
+Key names to use:
+- To press Enter: use key "Enter" (NOT "Return")
+- To press Space: use key "Space" (NOT "space")
+- To press Ctrl+something: use key "Control+l" (NOT "ctrl+l")
+- Do NOT use Tab to navigate between buttons — only use Tab between text input fields.
 
 Success state: You can see "In-force Policies" heading, the adviser dashboard with navigation items like "Dashboard", "Policies", "Claims", "Quotes", or the URL contains "dashboard.html" or "policy.html".
 Failure state: Error message visible on the ForgeRock login page, login form still present after attempts, or stuck on the welcome page.
@@ -20,6 +26,8 @@ Important notes:
 - The login button on the welcome page is a large red button. Click it to proceed to ForgeRock.
 - The ForgeRock page may have a multi-step flow (username first, then password). Follow each step.
 - Do NOT be alarmed by the redirect to forgerock.io — this is the expected SSO flow.
+- If you end up on a "Forgot Password" page, navigate back to: https://adviserretail.aia.com.au/au/en/welcome.html and start again.
+- ALWAYS click buttons directly using screenshot coordinates rather than using keyboard shortcuts.
 
 Respond only with structured tool actions. Do not narrate.
 When successfully authenticated, respond with text containing "login successful".
