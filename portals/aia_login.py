@@ -49,22 +49,47 @@ async def aia_login(
 ) -> None:
     """Log into AIA portal. Calls otp_callback() when OTP input is needed."""
 
-    # Navigate directly to the policy page — AIA will redirect to ForgeRock if not logged in
-    log.info("Navigating to AIA policy page (will redirect to ForgeRock login)")
-    await page.goto(
-        "https://adviserretail.aia.com.au/au/en/policy.html?inforce=true",
-        wait_until="networkidle",
-        timeout=45000,
-    )
+    # Step 1: Load welcome page and extract the login link URL
+    log.info("Loading AIA welcome page to find login link")
+    await page.goto(LOGIN_URL, wait_until="networkidle", timeout=45000)
     await asyncio.sleep(2)
-    log.info("After navigate, URL: %s", page.url)
+    log.info("Welcome page URL: %s | title: %s", page.url, await page.title())
 
-    # If already on AIA (not ForgeRock), we're already logged in
-    if "forgerock" not in page.url.lower() and "openam" not in page.url.lower():
+    # If already on AIA dashboard, skip login
+    if "forgerock" not in page.url.lower() and "openam" not in page.url.lower() and "welcome" not in page.url.lower():
         log.info("Already authenticated — skipping login")
         return
 
-    log.info("On ForgeRock login page")
+    # Extract the ForgeRock login URL from the page
+    login_href = await page.evaluate("""
+        () => {
+            const all = Array.from(document.querySelectorAll('a, button'));
+            const loginEl = all.find(e => /login|sign.?in/i.test(e.textContent.trim()) || /login|sign.?in/i.test(e.href || ''));
+            if (loginEl && loginEl.href) return loginEl.href;
+            // Try data attributes
+            const dataEl = document.querySelector('[data-login-url], [data-href*="forgerock"], [data-href*="openam"]');
+            if (dataEl) return dataEl.dataset.loginUrl || dataEl.dataset.href;
+            return null;
+        }
+    """)
+    log.info("Found login href: %s", login_href)
+
+    if login_href and ("forgerock" in login_href or "openam" in login_href):
+        log.info("Navigating directly to ForgeRock URL")
+        await page.goto(login_href, wait_until="networkidle", timeout=45000)
+    else:
+        # Click the login button
+        log.info("Clicking login button (no direct href found)")
+        for selector in ["a.btn-login", "button.btn-login", ".btn-login", "[class*='login']"]:
+            try:
+                await page.locator(selector).first.click(timeout=3000)
+                break
+            except Exception:
+                continue
+        await page.wait_for_load_state("networkidle", timeout=30000)
+
+    await asyncio.sleep(2)
+    log.info("After login nav, URL: %s", page.url)
 
     # Step 2: ForgeRock — wait for JS-rendered form to appear
     log.info("Waiting for ForgeRock form to render (JS app)...")
@@ -80,22 +105,22 @@ async def aia_login(
     await username_field.wait_for(state="visible", timeout=20000)
     log.info("ForgeRock form visible, URL: %s", page.url)
 
-    # Clear and type username — use type() not fill() to trigger Angular change detection
+    # Clear and type username char-by-char to trigger Angular change detection
     await username_field.click()
     await page.keyboard.press("Control+a")
     await page.keyboard.press("Delete")
-    await username_field.type(username, delay=50)
+    await username_field.press_sequentially(username, delay=50)
     log.info("Username entered: %s", username)
     await asyncio.sleep(0.5)
 
-    # Step 3: Enter password — type() fires real keystrokes, works with Angular/ForgeRock
+    # Step 3: Enter password char-by-char
     log.info("Entering password")
     pw_field = page.locator("input[placeholder='Password'], input[name='IDToken2'], input[type='password']").first
     await pw_field.wait_for(state="visible", timeout=5000)
     await pw_field.click()
     await page.keyboard.press("Control+a")
     await page.keyboard.press("Delete")
-    await pw_field.type(password, delay=50)
+    await pw_field.press_sequentially(password, delay=50)
     log.info("Password entered (length: %d)", len(password))
     await asyncio.sleep(0.5)
 
