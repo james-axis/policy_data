@@ -81,16 +81,16 @@ async def aia_login(
     log.info("ForgeRock form visible, URL: %s", page.url)
 
     # Clear and fill username
-    await username_field.triple_click()
+    await username_field.click(click_count=3)
     await username_field.fill(username)
     log.info("Username entered: %s", username)
     await asyncio.sleep(0.5)
 
-    # Step 3: Enter password — use type() to handle special chars reliably
+    # Step 3: Enter password
     log.info("Entering password")
     pw_field = page.locator("input[placeholder='Password'], input[name='IDToken2'], input[type='password']").first
     await pw_field.wait_for(state="visible", timeout=5000)
-    await pw_field.triple_click()
+    await pw_field.click(click_count=3)
     await pw_field.fill(password)
     log.info("Password entered (length: %d)", len(password))
     await asyncio.sleep(0.5)
