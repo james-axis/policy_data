@@ -53,10 +53,10 @@ async def aia_login(
     log.info("Navigating to AIA policy page (will redirect to ForgeRock login)")
     await page.goto(
         "https://adviserretail.aia.com.au/au/en/policy.html?inforce=true",
-        wait_until="domcontentloaded",
-        timeout=30000,
+        wait_until="networkidle",
+        timeout=45000,
     )
-    await asyncio.sleep(3)
+    await asyncio.sleep(2)
     log.info("After navigate, URL: %s", page.url)
 
     # If already on AIA (not ForgeRock), we're already logged in
@@ -66,11 +66,18 @@ async def aia_login(
 
     log.info("On ForgeRock login page")
 
-    # Step 2: ForgeRock — wait for form to load then fill credentials
-    log.info("Waiting for ForgeRock form...")
-    # Wait for the username field to appear
-    username_field = page.locator("input[placeholder='Username'], input[name='IDToken1'], input[name='username']").first
-    await username_field.wait_for(state="visible", timeout=15000)
+    # Step 2: ForgeRock — wait for JS-rendered form to appear
+    log.info("Waiting for ForgeRock form to render (JS app)...")
+    await asyncio.sleep(3)  # Extra wait for Angular/JS rendering
+    log.info("Current URL after extra wait: %s", page.url)
+
+    # Try broad selector — ForgeRock renders inputs dynamically
+    username_field = page.locator(
+        "input[placeholder='Username'], input[name='IDToken1'], "
+        "input[name='username'], input[type='text']:visible, "
+        "input[autocomplete='username']"
+    ).first
+    await username_field.wait_for(state="visible", timeout=20000)
     log.info("ForgeRock form visible, URL: %s", page.url)
 
     # Clear and fill username
