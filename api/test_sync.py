@@ -176,12 +176,18 @@ async def _run_aia_sync():
             _test_state["message"] = (
                 "Logging in via Claude Computer Use — if MFA triggered, POST OTP to /test/otp"
             )
+            async def _on_otp_needed():
+                _test_state["message"] = (
+                    "⚠️  MFA triggered — check your phone and POST code to /test/otp"
+                )
+
             new_cookies = await claude_login(
                 page=page,
                 portal_id="aia",
                 portal_login_url="https://adviserretail.aia.com.au/au/en/welcome.html",
                 credentials={"username": username, "password": password},
                 twilio_number=phone,
+                on_otp_needed=_on_otp_needed,
             )
             session_store.set("test_adviser", "aia", new_cookies, ttl_hours=12)
             _test_state["message"] = "Login successful — extracting policies..."

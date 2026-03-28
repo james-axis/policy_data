@@ -15,8 +15,8 @@ from config import settings
 
 log = logging.getLogger(__name__)
 
-DISPLAY_WIDTH = 1280
-DISPLAY_HEIGHT = 800
+DISPLAY_WIDTH = 1920
+DISPLAY_HEIGHT = 1080
 TOOL_VERSION = "computer_20250124"
 BETA_FLAG = "computer-use-2025-01-24"
 MODEL = "claude-sonnet-4-20250514"
@@ -51,6 +51,7 @@ async def claude_login(
     portal_login_url: str,
     credentials: dict,
     twilio_number: str | None = None,
+    on_otp_needed=None,  # optional async callable() called when waiting for OTP
 ) -> list[dict]:
     """Drive Claude through the portal login flow and return session cookies.
 
@@ -60,6 +61,7 @@ async def claude_login(
         portal_login_url: URL to navigate to before starting.
         credentials: dict with 'username' and 'password'.
         twilio_number: E.164 number for OTP capture (None if no 2FA).
+        on_otp_needed: Optional async callable invoked when OTP wait begins.
 
     Returns:
         List of cookie dicts from the authenticated browser context.
@@ -142,6 +144,11 @@ async def claude_login(
                 # Check if Claude signals OTP needed
                 if "otp_needed" in text or "otp" in text or "verification code" in text or "2fa" in text:
                     log.info("OTP screen detected — waiting up to 120s for manual code entry")
+                    if on_otp_needed:
+                        try:
+                            await on_otp_needed()
+                        except Exception:
+                            pass
                     # Always wait on Redis regardless of Twilio config — user can POST /test/otp
                     _store = otp_store or OTPStore()
                     _number = twilio_number or "manual"

@@ -27,7 +27,7 @@ class Settings(BaseSettings):
 
     # Worker
     max_worker_concurrency: int = 5
-    claude_max_turns: int = 30
+    claude_max_turns: int = 50
     log_level: str = "INFO"
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
