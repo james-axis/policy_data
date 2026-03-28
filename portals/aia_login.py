@@ -126,30 +126,21 @@ async def aia_login(
     await username_field.wait_for(state="visible", timeout=20000)
     log.info("ForgeRock form visible, URL: %s", page.url)
 
-    # Fill username using fill() + JS event dispatch to trigger Angular
+    # Click username field and type using keyboard (same method Claude used successfully)
     await username_field.click()
-    await username_field.fill(username)
-    await page.evaluate("""(el) => {
-        el.dispatchEvent(new Event('input', {bubbles: true}));
-        el.dispatchEvent(new Event('change', {bubbles: true}));
-        el.dispatchEvent(new KeyboardEvent('keyup', {bubbles: true}));
-    }""", await username_field.element_handle())
-    log.info("Username entered: %s | field value: %s", username, await username_field.input_value())
+    await page.keyboard.type(username, delay=50)
+    log.info("Username typed via keyboard: %s", username)
     await asyncio.sleep(0.5)
 
-    # Step 3: Enter password
-    log.info("Entering password")
+    # Tab to password field and type
+    await page.keyboard.press("Tab")
+    await asyncio.sleep(0.3)
+    log.info("Entering password via keyboard")
     pw_field = page.locator("input[placeholder='Password'], input[name='IDToken2'], input[type='password']").first
     await pw_field.wait_for(state="visible", timeout=5000)
     await pw_field.click()
-    await pw_field.fill(password)
-    await page.evaluate("""(el) => {
-        el.dispatchEvent(new Event('input', {bubbles: true}));
-        el.dispatchEvent(new Event('change', {bubbles: true}));
-        el.dispatchEvent(new KeyboardEvent('keyup', {bubbles: true}));
-    }""", await pw_field.element_handle())
-    actual_len = await page.evaluate("(el) => el.value.length", await pw_field.element_handle())
-    log.info("Password entered (expected length: %d, actual: %d)", len(password), actual_len)
+    await page.keyboard.type(password, delay=50)
+    log.info("Password typed via keyboard (length: %d)", len(password))
     await asyncio.sleep(0.5)
 
     # Step 4: Click Next button
