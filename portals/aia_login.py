@@ -2,9 +2,9 @@
 
 ForgeRock SSO flow:
   1. AIA welcome page → click Login button
-  2. ForgeRock page → enter username + password → click Sign In
-  3. MFA screen → mobile already selected → click Next to trigger SMS
-  4. OTP entry screen → type code → click Submit
+  2. ForgeRock page — may be one-step (user+pass) or two-step (user → Next → pass)
+  3. MFA screen → mobile radio already selected → click Next to send SMS
+  4. OTP entry → type code → click Submit
   5. Redirected back to AIA dashboard
 """
 
@@ -18,7 +18,27 @@ from playwright.async_api import Page
 log = logging.getLogger(__name__)
 
 LOGIN_URL = "https://adviserretail.aia.com.au/au/en/welcome.html"
-DASHBOARD_URL = "https://adviserretail.aia.com.au/au/en/dashboard.html"
+
+
+async def _click_submit(page: Page) -> None:
+    """Click the primary submit/next button on a ForgeRock page."""
+    for selector in [
+        "input[type='submit']",
+        "button[type='submit']",
+        "button.btn-primary",
+        "button:has-text('Next')",
+        "button:has-text('Sign In')",
+        "button:has-text('Login')",
+        "button:has-text('Continue')",
+    ]:
+        try:
+            el = page.locator(selector).first
+            await el.click(timeout=3000)
+            return
+        except Exception:
+            continue
+    # Last resort: press Enter
+    await page.keyboard.press("Enter")
 
 
 async def aia_login(
@@ -32,110 +52,115 @@ async def aia_login(
     log.info("Navigating to AIA welcome page")
     await page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=30000)
     await asyncio.sleep(2)
+    log.info("Welcome page loaded: %s | %s", await page.title(), page.url)
 
     # Step 1: Click the Login button on the welcome page
-    log.info("Clicking Login button, page title: %s url: %s", await page.title(), page.url)
-    # Try multiple strategies to find the Login button
+    log.info("Looking for Login button")
     clicked = False
     for selector in [
         "a.btn-login", "button.btn-login", ".btn-login",
         "a[class*='login']", "button[class*='login']",
-        "a[href*='login']", "a[href*='Login']",
-        ".login-button", "#loginButton",
+        "[class*='login-button']", "#loginButton",
+        "a[href*='forgerock']", "a[href*='openam']",
     ]:
         try:
             el = page.locator(selector).first
             await el.click(timeout=3000)
             clicked = True
-            log.info("Clicked login button via selector: %s", selector)
+            log.info("Clicked login button via: %s", selector)
             break
         except Exception:
             continue
 
     if not clicked:
-        # JS fallback: click the first element whose text contains "Login"
-        log.info("Using JS fallback to find Login button")
+        log.info("Trying JS to find login button")
         await page.evaluate("""
             const els = Array.from(document.querySelectorAll('a, button'));
-            const btn = els.find(e => e.textContent.trim().toLowerCase() === 'login' || e.textContent.trim().toLowerCase() === 'log in');
-            if (btn) btn.click();
-            else throw new Error('Login button not found in DOM');
+            const btn = els.find(e => /^(login|log in|sign in)$/i.test(e.textContent.trim()));
+            if (btn) { btn.click(); }
+            else { throw new Error('Login button not found: ' + els.map(e=>e.textContent.trim()).filter(t=>t).slice(0,20).join(' | ')); }
         """)
-    await asyncio.sleep(3)
+    await asyncio.sleep(4)
+    log.info("After login click, URL: %s", page.url)
 
-    log.info("On ForgeRock page: %s", page.url)
-
-    # Step 2: Enter username
+    # Step 2: ForgeRock — handle username (may be two-step)
     log.info("Entering username")
-    username_field = page.locator("input[name='IDToken1'], input[type='text'], input[type='email']").first
+    username_field = page.locator("input[name='IDToken1'], input[name='username'], input[type='text'], input[type='email']").first
     await username_field.fill(username, timeout=10000)
     await asyncio.sleep(0.5)
 
+    # Check if password field is already visible (one-step) or need to click Next first (two-step)
+    password_visible = False
+    try:
+        pw_field = page.locator("input[name='IDToken2'], input[type='password']").first
+        await pw_field.wait_for(state="visible", timeout=2000)
+        password_visible = True
+        log.info("Password field already visible — one-step form")
+    except Exception:
+        log.info("Password field not visible — two-step form, clicking Next")
+        await _click_submit(page)
+        await asyncio.sleep(3)
+        log.info("After Next, URL: %s", page.url)
+
     # Step 3: Enter password
     log.info("Entering password")
-    password_field = page.locator("input[name='IDToken2'], input[type='password']").first
-    await password_field.fill(password, timeout=10000)
+    pw_field = page.locator("input[name='IDToken2'], input[type='password']").first
+    await pw_field.fill(password, timeout=10000)
     await asyncio.sleep(0.5)
 
-    # Step 4: Click Sign In button
+    # Step 4: Click Sign In
     log.info("Clicking Sign In")
-    try:
-        sign_in = page.locator("input[type='submit'], button[type='submit']").first
-        await sign_in.click(timeout=10000)
-    except Exception:
-        await page.keyboard.press("Enter")
-    await asyncio.sleep(3)
-
+    await _click_submit(page)
+    await asyncio.sleep(4)
     log.info("After sign in, URL: %s", page.url)
 
     # Check for login error
-    error = page.locator(".alert-danger, .error-message, [class*='error']").first
     try:
-        err_text = await error.inner_text(timeout=2000)
-        if err_text:
+        err = page.locator(".alert-danger, [class*='error'], [class*='alert']").first
+        err_text = await err.inner_text(timeout=2000)
+        if err_text and len(err_text.strip()) > 5:
             raise RuntimeError(f"AIA login error: {err_text.strip()}")
-    except Exception as e:
-        if "RuntimeError" in str(type(e)):
-            raise
-        pass  # No error element, that's fine
+    except RuntimeError:
+        raise
+    except Exception:
+        pass
 
-    # Step 5: MFA selection screen — click Next to send SMS
-    if "forgerock" in page.url:
-        log.info("On MFA selection screen")
-        # Make sure mobile is selected
-        try:
-            mobile_radio = page.locator("input[type='radio']").first
-            await mobile_radio.check(timeout=5000)
-        except Exception:
-            pass
+    # Step 5: MFA selection screen — select mobile and click Next to send SMS
+    if "forgerock" in page.url.lower():
+        log.info("Still on ForgeRock — checking for MFA selection screen")
+        page_text = await page.inner_text("body")
+        log.info("Page text preview: %s", page_text[:300])
 
-        # Click Next/Submit to trigger SMS
-        try:
-            next_btn = page.locator("input[type='submit'], button[type='submit'], button:has-text('Next'), button:has-text('Submit')").first
-            await next_btn.click(timeout=10000)
-        except Exception:
-            await page.keyboard.press("Enter")
-        await asyncio.sleep(3)
-        log.info("Clicked Next on MFA screen, URL: %s", page.url)
+        if "how would you like" in page_text.lower() or "verify" in page_text.lower() or "mobile" in page_text.lower():
+            log.info("MFA selection screen detected — selecting mobile and clicking Next")
+            try:
+                # Select the first radio (mobile phone)
+                radio = page.locator("input[type='radio']").first
+                await radio.check(timeout=5000)
+            except Exception:
+                pass
+            await asyncio.sleep(0.5)
+            await _click_submit(page)
+            await asyncio.sleep(4)
+            log.info("After MFA Next, URL: %s", page.url)
 
     # Step 6: OTP entry screen
-    if "forgerock" in page.url:
-        log.info("Waiting for OTP code via callback")
-        otp_code = await otp_callback()
-        log.info("Got OTP, entering it")
+    if "forgerock" in page.url.lower():
+        page_text = await page.inner_text("body")
+        log.info("ForgeRock page text: %s", page_text[:300])
 
-        otp_field = page.locator("input[name='IDToken1'], input[type='text'], input[autocomplete='one-time-code']").first
-        await otp_field.fill(otp_code, timeout=10000)
-        await asyncio.sleep(0.5)
-
-        try:
-            submit = page.locator("input[type='submit'], button[type='submit']").first
-            await submit.click(timeout=10000)
-        except Exception:
-            await page.keyboard.press("Enter")
-        await asyncio.sleep(5)
+        if any(kw in page_text.lower() for kw in ["one-time", "verification code", "otp", "passcode", "enter the code"]):
+            log.info("OTP entry screen — waiting for code")
+            otp_code = await otp_callback()
+            log.info("Got OTP code, entering")
+            otp_field = page.locator("input[name='IDToken1'], input[type='text'], input[autocomplete='one-time-code']").first
+            await otp_field.fill(otp_code, timeout=10000)
+            await asyncio.sleep(0.5)
+            await _click_submit(page)
+            await asyncio.sleep(5)
+            log.info("After OTP submit, URL: %s", page.url)
 
     log.info("Login complete, final URL: %s", page.url)
-
-    if "forgerock" in page.url or "welcome" in page.url:
-        raise RuntimeError(f"Login did not complete, still on: {page.url}")
+    if "forgerock" in page.url.lower() or "welcome" in page.url:
+        page_text = await page.inner_text("body")
+        raise RuntimeError(f"Login incomplete at: {page.url} | {page_text[:200]}")
