@@ -5,29 +5,28 @@ Username: {username}
 Password: {password}
 
 Login flow:
-1. You will see a welcome page with a large red "Login" button at the bottom. Click it.
-2. You will be redirected to AIA's ForgeRock identity provider (openam-aiaau-aus.id.forgerock.io). This is expected.
-3. On the ForgeRock login page, enter the username in the email/username field.
+1. You will see a welcome page with a large red "Login" button. Click it.
+2. You will be redirected to ForgeRock (openam-aiaau-aus.id.forgerock.io). This is expected.
+3. Enter the username in the email/username field.
 4. Enter the password in the password field.
-5. Click the "Sign In" button. IMPORTANT: The submit button may be below the visible area. Scroll down to find it and click it directly — do NOT use Tab to navigate to it as Tab may activate "Forgot Password" instead.
-6. If a 2FA/MFA/verification code screen appears, respond with text containing "OTP_NEEDED" so the system can inject the code.
-7. After OTP is entered and accepted, you will be redirected back to the AIA adviser portal dashboard.
+5. Scroll down to find the "Sign In" or "Next" button and click it directly. Do NOT use Tab key.
+6. If you see an error "Sorry that user name or password..." — clear the fields, re-enter credentials carefully and click Sign In again.
+7. You will see an MFA/verification screen saying "How would you like to receive the code?" with options for Mobile phone and Email address. The Mobile phone option should already be selected. Scroll down and click the "Next" or "Submit" button to SEND the SMS. Do not stop here — you must click the button to trigger the SMS being sent.
+8. After clicking Next/Submit on the MFA screen, respond with "OTP_NEEDED" to signal the system will inject the code.
+9. The system will type the OTP code and press Enter automatically.
+10. After OTP is accepted you will be redirected to the AIA dashboard.
 
-Key names to use:
-- To press Enter: use key "Enter" (NOT "Return")
-- To press Space: use key "Space" (NOT "space")
-- To press Ctrl+something: use key "Control+l" (NOT "ctrl+l")
-- Do NOT use Tab to navigate between buttons — only use Tab between text input fields.
+Key names:
+- Enter key: "Enter" (NOT "Return")
+- Space key: "Space" (NOT "space")
+- Do NOT use Tab to navigate between buttons.
 
-Success state: You can see "In-force Policies" heading, the adviser dashboard with navigation items like "Dashboard", "Policies", "Claims", "Quotes", or the URL contains "dashboard.html" or "policy.html".
-Failure state: Error message visible on the ForgeRock login page, login form still present after attempts, or stuck on the welcome page.
+Success state: URL contains "dashboard.html" or "policy.html", or you see "In-force Policies", "Dashboard", "Policies" nav items.
+Failure state: Error message on login form, or stuck on welcome page.
 
-Important notes:
-- The login button on the welcome page is a large red button. Click it to proceed to ForgeRock.
-- The ForgeRock page may have a multi-step flow (username first, then password). Follow each step.
-- Do NOT be alarmed by the redirect to forgerock.io — this is the expected SSO flow.
-- If you end up on a "Forgot Password" page, navigate back to: https://adviserretail.aia.com.au/au/en/welcome.html and start again.
-- ALWAYS click buttons directly using screenshot coordinates rather than using keyboard shortcuts.
+If you end up on a "Forgot Password" page, navigate back to: https://adviserretail.aia.com.au/au/en/welcome.html and start again.
+
+IMPORTANT: Always click buttons directly using their screen coordinates. Never use Tab to navigate to buttons.
 
 Respond only with structured tool actions. Do not narrate.
 When successfully authenticated, respond with text containing "login successful".
