@@ -25,6 +25,14 @@ _test_state = {
     "debug_url": "",
 }
 
+# Stores page debug info from last run
+_page_debug = {
+    "url": "",
+    "body_text": "",
+    "html_snippet": "",
+    "login_href": "",
+}
+
 
 class OTPInput(BaseModel):
     code: str
@@ -45,6 +53,12 @@ async def submit_otp(otp: OTPInput):
     otp_store.store(phone, otp.code)
     otp_store.store("manual", otp.code)
     return {"status": "stored", "phone": phone, "code_received": otp.code}
+
+
+@router.get("/page-debug")
+async def page_debug():
+    """Return page content captured during last login attempt."""
+    return _page_debug
 
 
 @router.get("/screenshots")
@@ -178,7 +192,7 @@ async def _run_aia_sync():
                     # also try "manual" key
                     return await otp_store.wait_for_code("manual", timeout=30)
 
-            await aia_login(page, username, password, otp_callback)
+            await aia_login(page, username, password, otp_callback, page_debug=_page_debug)
             new_cookies = await page.context.cookies()
             session_store.set("test_adviser", "aia", new_cookies, ttl_hours=12)
             _test_state["message"] = "Login successful — extracting policies..."

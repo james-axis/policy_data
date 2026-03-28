@@ -46,6 +46,7 @@ async def aia_login(
     username: str,
     password: str,
     otp_callback,  # async callable that returns the OTP code string
+    page_debug: dict | None = None,
 ) -> None:
     """Log into AIA portal. Calls otp_callback() when OTP input is needed."""
 
@@ -99,9 +100,15 @@ async def aia_login(
     # Log page content to diagnose what's actually showing
     try:
         body_text = await page.inner_text("body")
-        log.info("Page body text (first 500 chars): %s", body_text[:500])
         page_html = await page.content()
-        log.info("Page HTML snippet: %s", page_html[1000:2000])
+        log.info("Page URL: %s", page.url)
+        log.info("Page body text (first 500): %s", body_text[:500])
+        log.info("Page HTML (1000-2000): %s", page_html[1000:2000])
+        if page_debug is not None:
+            page_debug["url"] = page.url
+            page_debug["body_text"] = body_text[:2000]
+            page_debug["html_snippet"] = page_html[500:3000]
+            page_debug["login_href"] = login_href or ""
     except Exception as e:
         log.warning("Could not get page text: %s", e)
 
