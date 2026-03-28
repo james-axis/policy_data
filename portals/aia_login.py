@@ -61,36 +61,41 @@ async def aia_login(
         log.info("Already authenticated — skipping login")
         return
 
-    # Extract the ForgeRock login URL from the page
-    login_href = await page.evaluate("""
-        () => {
-            const all = Array.from(document.querySelectorAll('a, button'));
-            const loginEl = all.find(e => /login|sign.?in/i.test(e.textContent.trim()) || /login|sign.?in/i.test(e.href || ''));
-            if (loginEl && loginEl.href) return loginEl.href;
-            // Try data attributes
-            const dataEl = document.querySelector('[data-login-url], [data-href*="forgerock"], [data-href*="openam"]');
-            if (dataEl) return dataEl.dataset.loginUrl || dataEl.dataset.href;
-            return null;
-        }
-    """)
-    log.info("Found login href: %s", login_href)
+    # Click the Login button — use multiple strategies
+    login_href = None
+    log.info("Clicking Login button on welcome page")
+    clicked = False
 
-    if login_href and ("forgerock" in login_href or "openam" in login_href):
-        log.info("Navigating directly to ForgeRock URL")
-        await page.goto(login_href, wait_until="networkidle", timeout=45000)
-    else:
-        # Click the login button
-        log.info("Clicking login button (no direct href found)")
-        for selector in ["a.btn-login", "button.btn-login", ".btn-login", "[class*='login']"]:
-            try:
-                await page.locator(selector).first.click(timeout=3000)
-                break
-            except Exception:
-                continue
-        await page.wait_for_load_state("networkidle", timeout=30000)
+    # Strategy 1: Playwright text selector
+    for locator in [
+        page.get_by_role("link", name="Login"),
+        page.get_by_role("button", name="Login"),
+        page.locator("text=Login").first,
+        page.locator("a:has-text('Login')").first,
+        page.locator("button:has-text('Login')").first,
+    ]:
+        try:
+            await locator.click(timeout=5000)
+            clicked = True
+            log.info("Clicked Login via locator")
+            break
+        except Exception:
+            continue
 
+    if not clicked:
+        # JS fallback: dispatch click on element with Login text
+        log.info("Using JS click fallback")
+        await page.evaluate("""
+            const els = [...document.querySelectorAll('a,button,span,div')];
+            const btn = els.find(e => e.textContent.trim() === 'Login');
+            if (btn) btn.click();
+            else throw new Error('Login not found. Elements: ' + els.map(e=>e.textContent.trim()).filter(Boolean).slice(0,30).join('|'));
+        """)
+
+    # Wait for ForgeRock redirect
+    await page.wait_for_url("**/openam**", timeout=20000)
     await asyncio.sleep(2)
-    log.info("After login nav, URL: %s", page.url)
+    log.info("After login click, URL: %s", page.url)
 
     # Step 2: ForgeRock — wait for JS-rendered form to appear
     log.info("Waiting for ForgeRock form to render (JS app)...")
