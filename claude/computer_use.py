@@ -140,22 +140,20 @@ async def claude_login(
                     return await page.context.cookies()
 
                 # Check if Claude signals OTP needed
-                if "otp" in text or "verification code" in text or "2fa" in text:
-                    if otp_store and twilio_number:
-                        log.info("Waiting for OTP on %s", twilio_number)
-                        try:
-                            otp_code = await otp_store.wait_for_code(twilio_number, timeout=30)
-                            # Type the OTP into the page
-                            await page.keyboard.type(otp_code, delay=50)
-                        except TimeoutError:
-                            log.warning("OTP timeout — retrying once")
-                            try:
-                                otp_code = await otp_store.wait_for_code(twilio_number, timeout=30)
-                                await page.keyboard.type(otp_code, delay=50)
-                            except TimeoutError:
-                                raise AuthenticationError(
-                                    f"OTP not received for {twilio_number} after 2 attempts"
-                                )
+                if "otp_needed" in text or "otp" in text or "verification code" in text or "2fa" in text:
+                    log.info("OTP screen detected — waiting up to 120s for manual code entry")
+                    # Always wait on Redis regardless of Twilio config — user can POST /test/otp
+                    _store = otp_store or OTPStore()
+                    _number = twilio_number or "manual"
+                    try:
+                        otp_code = await _store.wait_for_code(_number, timeout=120)
+                        log.info("Got OTP, typing it now")
+                        await page.keyboard.type(otp_code, delay=50)
+                        await page.keyboard.press("Enter")
+                    except TimeoutError:
+                        raise AuthenticationError(
+                            f"OTP not received for {_number} within 120s — POST /test/otp with the code"
+                        )
 
             elif block.type == "tool_use":
                 action = block.input

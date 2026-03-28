@@ -41,8 +41,10 @@ async def submit_otp(otp: OTPInput):
     """Manually submit an OTP code for the test sync."""
     otp_store = OTPStore()
     phone = os.getenv("AIA_PHONE", "+61433337000")
+    # Store under both the phone number and "manual" so either key works
     otp_store.store(phone, otp.code)
-    return {"status": "stored", "phone": phone}
+    otp_store.store("manual", otp.code)
+    return {"status": "stored", "phone": phone, "code_received": otp.code}
 
 
 @router.get("/screenshots")
