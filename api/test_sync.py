@@ -174,26 +174,15 @@ async def _run_aia_sync():
         # Step 4: Login if needed
         if not cookies:
             _test_state["message"] = (
-                "Logging in to AIA... (submit OTP at /test/otp when prompted)"
+                "Logging in via Claude Computer Use — if MFA triggered, POST OTP to /test/otp"
             )
-            from portals.aia_login import aia_login
-            from auth.twilio_otp import OTPStore
-
-            otp_store = OTPStore()
-
-            async def otp_callback():
-                """Wait for OTP submitted via /test/otp endpoint."""
-                _test_state["message"] = "Waiting for OTP — check your phone and POST to /test/otp"
-                log.info("Waiting for OTP...")
-                try:
-                    code = await otp_store.wait_for_code(phone or "manual", timeout=120)
-                    return code
-                except Exception:
-                    # also try "manual" key
-                    return await otp_store.wait_for_code("manual", timeout=30)
-
-            await aia_login(page, username, password, otp_callback, page_debug=_page_debug)
-            new_cookies = await page.context.cookies()
+            new_cookies = await claude_login(
+                page=page,
+                portal_id="aia",
+                portal_login_url="https://adviserretail.aia.com.au/au/en/welcome.html",
+                credentials={"username": username, "password": password},
+                twilio_number=phone,
+            )
             session_store.set("test_adviser", "aia", new_cookies, ttl_hours=12)
             _test_state["message"] = "Login successful — extracting policies..."
 

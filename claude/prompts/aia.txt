@@ -4,29 +4,51 @@ Login URL: https://adviserretail.aia.com.au/au/en/welcome.html
 Username: {username}
 Password: {password}
 
-Login flow:
-1. You will see a welcome page with a large red "Login" button. Click it.
-2. You will be redirected to ForgeRock (openam-aiaau-aus.id.forgerock.io). This is expected.
-3. Enter the username in the email/username field.
-4. Enter the password in the password field.
-5. Scroll down to find the "Sign In" or "Next" button and click it directly. Do NOT use Tab key.
-6. If you see an error "Sorry that user name or password..." — clear the fields, re-enter credentials carefully and click Sign In again.
-7. You will see an MFA/verification screen saying "How would you like to receive the code?" with options for Mobile phone and Email address. The Mobile phone option should already be selected. Scroll down and click the "Next" or "Submit" button to SEND the SMS. Do not stop here — you must click the button to trigger the SMS being sent.
-8. After clicking Next/Submit on the MFA screen, respond with "OTP_NEEDED" to signal the system will inject the code.
-9. The system will type the OTP code and press Enter automatically.
-10. After OTP is accepted you will be redirected to the AIA dashboard.
+THE LOGIN FORM (ForgeRock page) looks like this:
+- Title: "AIA Adviser Portal" / "Login to continue"
+- A text field with placeholder "Username"
+- A text field with placeholder "Password" (has an eye icon on the right)
+- A checkbox "Remember me"
+- A large red button labelled "Next"
+- A link "Forgot password?" at the bottom
 
-Key names:
-- Enter key: "Enter" (NOT "Return")
-- Space key: "Space" (NOT "space")
-- Do NOT use Tab to navigate between buttons.
+STEP BY STEP:
 
-Success state: URL contains "dashboard.html" or "policy.html", or you see "In-force Policies", "Dashboard", "Policies" nav items.
-Failure state: Error message on login form, or stuck on welcome page.
+Step 1 — Welcome page
+You will see the AIA Adviser Portal welcome page with a red "Login" button. Click it.
+Wait for the page to redirect to ForgeRock (URL will contain "forgerock" or "openam").
 
-If you end up on a "Forgot Password" page, navigate back to: https://adviserretail.aia.com.au/au/en/welcome.html and start again.
+Step 2 — ForgeRock login form
+You will see the login form described above. Take a screenshot to confirm.
+Click directly on the Username field and type: {username}
+Click directly on the Password field and type: {password}
 
-IMPORTANT: Always click buttons directly using their screen coordinates. Never use Tab to navigate to buttons.
+Step 3 — Click Next
+Find the large red "Next" button and click it.
+The button is BELOW the password field. If you cannot see it, scroll down a small amount.
+Do NOT use Tab key to find the button — scroll and then click it directly.
+
+Step 4 — MFA screen (if it appears)
+You may see a screen asking "How would you like to receive the code?" with:
+- A radio button for "Mobile phone: *******000"
+- A radio button for "Email address: ***es@*****"
+The mobile option should already be selected (radio button filled).
+Scroll down to find and click the "Next" or "Submit" button to SEND the SMS code.
+After clicking it, respond with the text "OTP_NEEDED".
+
+Step 5 — OTP entry
+After you say OTP_NEEDED, the system will wait for the user to provide the code.
+The code will be injected automatically. Just wait — do not take any action.
+
+Step 6 — Success
+After OTP is accepted you will be on the AIA dashboard.
+Respond with "login successful".
+
+KEY RULES:
+- Use key "Enter" (NOT "Return") when pressing Enter
+- NEVER use Tab to navigate between buttons — always scroll and click directly
+- If you land on "Forgot Password" page: navigate directly to https://adviserretail.aia.com.au/au/en/welcome.html and start again
+- After clicking Next on the login form, wait at least 3 seconds for the page to respond before doing anything else
+- Do NOT re-enter credentials unless you see a clear error message
 
 Respond only with structured tool actions. Do not narrate.
-When successfully authenticated, respond with text containing "login successful".
