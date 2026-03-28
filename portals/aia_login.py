@@ -49,39 +49,22 @@ async def aia_login(
 ) -> None:
     """Log into AIA portal. Calls otp_callback() when OTP input is needed."""
 
-    log.info("Navigating to AIA welcome page")
-    await page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=30000)
-    await asyncio.sleep(2)
-    log.info("Welcome page loaded: %s | %s", await page.title(), page.url)
+    # Navigate directly to the policy page — AIA will redirect to ForgeRock if not logged in
+    log.info("Navigating to AIA policy page (will redirect to ForgeRock login)")
+    await page.goto(
+        "https://adviserretail.aia.com.au/au/en/policy.html?inforce=true",
+        wait_until="domcontentloaded",
+        timeout=30000,
+    )
+    await asyncio.sleep(3)
+    log.info("After navigate, URL: %s", page.url)
 
-    # Step 1: Click the Login button on the welcome page
-    log.info("Looking for Login button")
-    clicked = False
-    for selector in [
-        "a.btn-login", "button.btn-login", ".btn-login",
-        "a[class*='login']", "button[class*='login']",
-        "[class*='login-button']", "#loginButton",
-        "a[href*='forgerock']", "a[href*='openam']",
-    ]:
-        try:
-            el = page.locator(selector).first
-            await el.click(timeout=3000)
-            clicked = True
-            log.info("Clicked login button via: %s", selector)
-            break
-        except Exception:
-            continue
+    # If already on AIA (not ForgeRock), we're already logged in
+    if "forgerock" not in page.url.lower() and "openam" not in page.url.lower():
+        log.info("Already authenticated — skipping login")
+        return
 
-    if not clicked:
-        log.info("Trying JS to find login button")
-        await page.evaluate("""
-            const els = Array.from(document.querySelectorAll('a, button'));
-            const btn = els.find(e => /^(login|log in|sign in)$/i.test(e.textContent.trim()));
-            if (btn) { btn.click(); }
-            else { throw new Error('Login button not found: ' + els.map(e=>e.textContent.trim()).filter(t=>t).slice(0,20).join(' | ')); }
-        """)
-    await asyncio.sleep(4)
-    log.info("After login click, URL: %s", page.url)
+    log.info("On ForgeRock login page")
 
     # Step 2: ForgeRock — wait for form to load then fill credentials
     log.info("Waiting for ForgeRock form...")
