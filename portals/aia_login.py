@@ -93,8 +93,17 @@ async def aia_login(
 
     # Step 2: ForgeRock — wait for JS-rendered form to appear
     log.info("Waiting for ForgeRock form to render (JS app)...")
-    await asyncio.sleep(3)  # Extra wait for Angular/JS rendering
-    log.info("Current URL after extra wait: %s", page.url)
+    await asyncio.sleep(5)  # Extra wait for Angular/JS rendering
+    log.info("Current URL after wait: %s", page.url)
+
+    # Log page content to diagnose what's actually showing
+    try:
+        body_text = await page.inner_text("body")
+        log.info("Page body text (first 500 chars): %s", body_text[:500])
+        page_html = await page.content()
+        log.info("Page HTML snippet: %s", page_html[1000:2000])
+    except Exception as e:
+        log.warning("Could not get page text: %s", e)
 
     # Try broad selector — ForgeRock renders inputs dynamically
     username_field = page.locator(
